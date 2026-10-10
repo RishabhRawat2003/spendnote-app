@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SectionTitle } from '@/components/Card';
@@ -10,6 +10,7 @@ import { Screen } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { SourcePicker } from '@/components/SourcePicker';
 import { INCOME_CATEGORY_ID } from '@/data/defaultCategories';
+import { errorMessage } from '@/lib/api';
 import { parseRupeesToPaise } from '@/lib/formatCurrency';
 import { haptics } from '@/lib/haptics';
 import { useAppColors } from '@/lib/theme';
@@ -30,6 +31,7 @@ export default function AddExpenseScreen() {
   const [source, setSource] = useState<Source>('cash');
   const [date, setDate] = useState(() => new Date());
   const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const paise = parseRupeesToPaise(amountText);
   const amountValid = paise !== null && paise > 0 && paise <= MAX_PAISE;
@@ -49,21 +51,28 @@ export default function AddExpenseScreen() {
     else if (categoryId === INCOME_CATEGORY_ID) setCategoryId(null);
   };
 
-  const save = () => {
-    if (!canSave || paise === null) return;
-    add({
-      amount: paise,
-      type,
-      merchant: merchant.trim(),
-      source,
-      date: date.toISOString(),
-      categoryId,
-      note: note.trim() || undefined,
-      worthIt: null,
-      tags: [],
-    });
-    haptics.success();
-    router.back();
+  const save = async () => {
+    if (!canSave || paise === null || saving) return;
+    setSaving(true);
+    try {
+      await add({
+        amount: paise,
+        type,
+        merchant: merchant.trim(),
+        source,
+        date: date.toISOString(),
+        categoryId,
+        note: note.trim() || undefined,
+        worthIt: null,
+        tags: [],
+      });
+      haptics.success();
+      router.back();
+    } catch (err) {
+      haptics.warning();
+      setSaving(false);
+      Alert.alert('Couldn’t save', errorMessage(err));
+    }
   };
 
   return (
@@ -141,13 +150,17 @@ export default function AddExpenseScreen() {
         style={{ paddingBottom: Math.max(insets.bottom, 12) }}>
         <Pressable
           onPress={save}
-          disabled={!canSave}
-          className={`items-center rounded-2xl py-4 ${
+          disabled={!canSave || saving}
+          className={`h-14 items-center justify-center rounded-2xl ${
             canSave ? 'bg-brand-600 active:opacity-80 dark:bg-brand-500' : 'bg-slate-200 dark:bg-white/10'
           }`}>
-          <Text className={`text-base font-bold ${canSave ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`}>
-            {missing ?? `Save ${type === 'debit' ? 'expense' : 'income'}`}
-          </Text>
+          {saving ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text className={`text-base font-bold ${canSave ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`}>
+              {missing ?? `Save ${type === 'debit' ? 'expense' : 'income'}`}
+            </Text>
+          )}
         </Pressable>
       </View>
     </Screen>

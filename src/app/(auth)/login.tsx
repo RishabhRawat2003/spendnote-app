@@ -3,7 +3,8 @@ import { useRef, useState } from 'react';
 import { Alert, Pressable, Text, View, type TextInput } from 'react-native';
 
 import { AuthInput } from '@/components/AuthInput';
-import { AuthShell, DemoNotice, PrimaryButton } from '@/components/AuthShell';
+import { AuthShell, FormError, PrimaryButton } from '@/components/AuthShell';
+import { ApiError, errorMessage } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
 import { useAuth } from '@/store/useAuth';
 
@@ -12,13 +13,33 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | undefined>>({});
   const passwordRef = useRef<TextInput>(null);
 
   const submit = async () => {
     if (loading) return;
+    const missing = {
+      email: email.trim() ? undefined : 'Enter your email',
+      password: password ? undefined : 'Enter your password',
+    };
+    setFieldErrors(missing);
+    setError(null);
+    if (missing.email || missing.password) {
+      haptics.warning();
+      return;
+    }
+
     setLoading(true);
-    await logIn(email, password);
-    haptics.success();
+    try {
+      await logIn(email, password);
+      haptics.success();
+    } catch (err) {
+      haptics.warning();
+      setFieldErrors(err instanceof ApiError ? { email: err.fieldErrors.email?.[0] } : {});
+      setError(errorMessage(err));
+      setLoading(false);
+    }
   };
 
   return (
@@ -33,12 +54,13 @@ export default function LoginScreen() {
           </Pressable>
         </View>
       }>
-      <DemoNotice />
+      <FormError message={error} />
       <AuthInput
         label="Email"
         icon="mail-outline"
         value={email}
         onChangeText={setEmail}
+        error={fieldErrors.email}
         placeholder="you@example.com"
         keyboardType="email-address"
         autoComplete="email"
@@ -54,6 +76,7 @@ export default function LoginScreen() {
         password
         value={password}
         onChangeText={setPassword}
+        error={fieldErrors.password}
         placeholder="Your password"
         autoComplete="password"
         textContentType="password"
@@ -61,7 +84,7 @@ export default function LoginScreen() {
         onSubmitEditing={submit}
       />
       <Pressable
-        onPress={() => Alert.alert('Forgot password', 'Password reset will work once the backend is ready.')}
+        onPress={() => Alert.alert('Forgot password', 'Password reset isn’t available yet.')}
         className="self-end"
         hitSlop={8}>
         <Text className="text-sm font-semibold text-brand-600 dark:text-brand-400">Forgot password?</Text>

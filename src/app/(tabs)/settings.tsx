@@ -4,12 +4,13 @@ import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { AppLockCard } from '@/components/AppLockCard';
+import { AutoDetectionCard } from '@/components/AutoDetectionCard';
 import { Card, SectionTitle } from '@/components/Card';
 import { LogoutDialog } from '@/components/LogoutDialog';
 import { Screen, ScreenTitle } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useTabBarSpace } from '@/components/TabBar';
-import { SOURCE_LIST } from '@/data/sources';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { haptics } from '@/lib/haptics';
 import { useAppColors } from '@/lib/theme';
@@ -112,19 +113,11 @@ export default function SettingsScreen() {
           />
         </Card>
 
-        <SectionTitle title="Coming soon" />
-        <Card className="overflow-hidden p-0">
-          <SettingsRow
-            icon="notifications-outline"
-            label="Automatic payment detection"
-            hint={`Reads payments from ${SOURCE_LIST.filter((s) => s.id !== 'cash')
-              .map((s) => s.label)
-              .join(', ')}`}
-            badge="Soon"
-          />
-          <Divider />
-          <SettingsRow icon="lock-closed-outline" label="App lock" badge="Soon" />
-        </Card>
+        <SectionTitle title="Automatic detection" />
+        <AutoDetectionCard />
+
+        <SectionTitle title="Security" />
+        <AppLockCard />
 
         <Pressable
           onPress={() => setConfirmingLogOut(true)}
@@ -137,7 +130,7 @@ export default function SettingsScreen() {
           <Ionicons name="wallet" size={22} color={colors.brand} />
           <Text className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">SpendNote</Text>
           <Text className="text-xs text-slate-400 dark:text-slate-500">
-            Version {Constants.expoConfig?.version ?? '1.0.0'} · Sample data, changes reset on restart
+            Version {Constants.expoConfig?.version ?? '1.0.0'}
           </Text>
         </View>
       </ScrollView>
@@ -201,8 +194,4 @@ function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return '?';
   return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
-}
-
-function Divider() {
-  return <View className="ml-16 h-px bg-slate-100 dark:bg-white/5" />;
 }

@@ -8,7 +8,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplash } from '@/components/AnimatedSplash';
+import { AppLockScreen } from '@/components/AppLockScreen';
+import { usePaymentDetection } from '@/lib/paymentDetection';
 import { useAppColors } from '@/lib/theme';
+import { useAppLock } from '@/store/useAppLock';
 import { useAuth } from '@/store/useAuth';
 import { useSettings } from '@/store/useSettings';
 
@@ -16,10 +19,21 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const themePreference = useSettings((s) => s.theme);
-  const isLoggedIn = useAuth((s) => s.user !== null);
+  const authStatus = useAuth((s) => s.status);
+  const restoreSession = useAuth((s) => s.restore);
+  const isLoggedIn = authStatus === 'signedIn';
   const colors = useAppColors();
-  const [showSplash, setShowSplash] = useState(true);
-  const hideSplash = useCallback(() => setShowSplash(false), []);
+  const [splashDone, setSplashDone] = useState(false);
+  const hideSplash = useCallback(() => setSplashDone(true), []);
+  const lockHydrated = useAppLock((s) => s.hydrated);
+  const hydrateLock = useAppLock((s) => s.hydrate);
+  const showSplash = !splashDone || authStatus === 'restoring' || !lockHydrated;
+  usePaymentDetection(isLoggedIn);
+
+  useEffect(() => {
+    restoreSession();
+    hydrateLock();
+  }, [restoreSession, hydrateLock]);
 
   useEffect(() => {
     colorScheme.set(themePreference);
@@ -63,6 +77,7 @@ export default function RootLayout() {
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           </Stack.Protected>
         </Stack>
+        {isLoggedIn ? <AppLockScreen active={!showSplash} /> : null}
         {showSplash ? <AnimatedSplash onFinish={hideSplash} /> : null}
       </ThemeProvider>
     </SafeAreaProvider>

@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { Fab } from '@/components/Fab';
 import { Screen, ScreenTitle } from '@/components/Screen';
 import { SummaryCard } from '@/components/SummaryCard';
+import { SyncBanner } from '@/components/SyncBanner';
 import { useTabBarSpace } from '@/components/TabBar';
 import { TransactionRow } from '@/components/TransactionRow';
 import { formatCurrency } from '@/lib/formatCurrency';
@@ -69,6 +70,7 @@ export default function HomeScreen() {
           title={firstName ? `${greeting(now)}, ${firstName}` : greeting(now)}
           subtitle={format(now, 'EEEE, d MMMM')}
         />
+        <SyncBanner />
 
         <View className="px-4">
           <SummaryCard

@@ -8,6 +8,7 @@ import { CategoryIcon } from '@/components/CategoryIcon';
 import { Screen } from '@/components/Screen';
 import { Sheet } from '@/components/Sheet';
 import { CATEGORY_COLORS, CATEGORY_ICONS, MISC_CATEGORY_ID } from '@/data/defaultCategories';
+import { errorMessage } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
 import { useAppColors } from '@/lib/theme';
 import { useCategories } from '@/store/useCategories';
@@ -31,6 +32,7 @@ export default function CategoriesScreen() {
   const transactions = useTransactions((s) => s.transactions);
   const colors = useAppColors();
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -48,11 +50,23 @@ export default function CategoriesScreen() {
     !!draft && categories.some((c) => c.id !== draft.id && c.name.toLowerCase() === trimmedName.toLowerCase());
   const canSave = !!draft && trimmedName.length > 0 && !nameTaken;
 
-  const save = () => {
-    if (!draft || !canSave) return;
+  const save = async () => {
+    if (!draft || !canSave || saving) return;
     const values = { name: trimmedName, icon: draft.icon, color: draft.color };
-    if (draft.id) update(draft.id, values);
-    else add(values);
+    if (draft.id) {
+      update(draft.id, values);
+    } else {
+      setSaving(true);
+      try {
+        await add(values);
+      } catch (err) {
+        haptics.warning();
+        Alert.alert('Couldn’t create the category', errorMessage(err));
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
     haptics.success();
     close();
   };
@@ -131,7 +145,7 @@ export default function CategoriesScreen() {
                 canSave ? 'bg-brand-600 active:opacity-80 dark:bg-brand-500' : 'bg-slate-200 dark:bg-white/10'
               }`}>
               <Text className={`font-bold ${canSave ? 'text-white' : 'text-slate-400 dark:text-slate-500'}`}>
-                {nameTaken ? 'Name already used' : 'Save'}
+                {nameTaken ? 'Name already used' : saving ? 'Saving…' : 'Save'}
               </Text>
             </Pressable>
             {draft?.id && draft.id !== MISC_CATEGORY_ID ? (

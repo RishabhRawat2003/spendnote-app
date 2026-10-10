@@ -3,9 +3,24 @@ import { useRef, useState } from 'react';
 import { Pressable, Text, View, type TextInput } from 'react-native';
 
 import { AuthInput } from '@/components/AuthInput';
-import { AuthShell, DemoNotice, PrimaryButton } from '@/components/AuthShell';
+import { AuthShell, FormError, PrimaryButton } from '@/components/AuthShell';
+import { ApiError, errorMessage } from '@/lib/api';
 import { haptics } from '@/lib/haptics';
 import { useAuth } from '@/store/useAuth';
+
+type Field = 'name' | 'email' | 'password' | 'confirm';
+
+/** Mirrors the server's signup rules so most mistakes are caught before a request. */
+function validate(name: string, email: string, password: string, confirm: string): Partial<Record<Field, string>> {
+  const errors: Partial<Record<Field, string>> = {};
+  if (name.trim().length < 2) errors.name = 'Enter your name (at least 2 letters)';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) errors.email = 'Enter a valid email';
+  if (password.length < 8) errors.password = 'Use at least 8 characters';
+  else if (!/\p{L}/u.test(password) || !/\d/.test(password)) errors.password = 'Include at least one letter and one number';
+  else if (password.trim() !== password) errors.password = 'Can’t start or end with a space';
+  if (!errors.password && confirm !== password) errors.confirm = 'Passwords don’t match';
+  return errors;
+}
 
 export default function SignUpScreen() {
   const signUp = useAuth((s) => s.signUp);
@@ -14,15 +29,38 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmRef = useRef<TextInput>(null);
 
   const submit = async () => {
     if (loading) return;
+    const errors = validate(name, email, password, confirm);
+    setFieldErrors(errors);
+    setError(null);
+    if (Object.keys(errors).length > 0) {
+      haptics.warning();
+      return;
+    }
+
     setLoading(true);
-    await signUp(name, email, password);
-    haptics.success();
+    try {
+      await signUp(name, email, password);
+      haptics.success();
+    } catch (err) {
+      haptics.warning();
+      if (err instanceof ApiError) {
+        setFieldErrors({
+          name: err.fieldErrors.name?.[0],
+          email: err.fieldErrors.email?.[0],
+          password: err.fieldErrors.password?.[0],
+        });
+      }
+      setError(errorMessage(err));
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,12 +75,13 @@ export default function SignUpScreen() {
           </Pressable>
         </View>
       }>
-      <DemoNotice />
+      <FormError message={error} />
       <AuthInput
         label="Name"
         icon="person-outline"
         value={name}
         onChangeText={setName}
+        error={fieldErrors.name}
         placeholder="Your name"
         autoCapitalize="words"
         autoComplete="name"
@@ -57,6 +96,7 @@ export default function SignUpScreen() {
         icon="mail-outline"
         value={email}
         onChangeText={setEmail}
+        error={fieldErrors.email}
         placeholder="you@example.com"
         keyboardType="email-address"
         autoComplete="email"
@@ -72,6 +112,8 @@ export default function SignUpScreen() {
         password
         value={password}
         onChangeText={setPassword}
+        error={fieldErrors.password}
+        hint="At least 8 characters, with a letter and a number"
         placeholder="Create a password"
         autoComplete="new-password"
         textContentType="newPassword"
@@ -86,6 +128,7 @@ export default function SignUpScreen() {
         password
         value={confirm}
         onChangeText={setConfirm}
+        error={fieldErrors.confirm}
         placeholder="Type it again"
         autoComplete="new-password"
         textContentType="newPassword"

@@ -117,7 +117,7 @@ export function LogoutDialog({ visible, name, email, initials, onCancel, onConfi
 
             <Text className="mt-4 text-xl font-bold text-slate-900 dark:text-slate-50">Log out?</Text>
             <Text className="mt-1.5 text-center text-sm leading-5 text-slate-500 dark:text-slate-400">
-              You’ll need to sign in again to see your expenses. Any email and password works for now.
+              Your expenses stay saved in your account. Log in again any time to see them.
             </Text>
           </View>
 

@@ -54,13 +54,12 @@ export function PrimaryButton({ label, onPress, loading = false }: PrimaryButton
   );
 }
 
-export function DemoNotice() {
+export function FormError({ message }: { message: string | null }) {
+  if (!message) return null;
   return (
-    <View className="flex-row items-center rounded-xl bg-amber-50 px-3 py-2.5 dark:bg-amber-500/10">
-      <Ionicons name="information-circle-outline" size={16} color="#D97706" />
-      <Text className="ml-2 flex-1 text-xs text-amber-800 dark:text-amber-200">
-        Demo mode: type anything and you’re in. Real accounts come with the backend.
-      </Text>
+    <View className="flex-row items-start rounded-xl bg-rose-50 px-3 py-2.5 dark:bg-rose-500/10">
+      <Ionicons name="alert-circle" size={16} color="#E11D48" style={{ marginTop: 1 }} />
+      <Text className="ml-2 flex-1 text-sm text-rose-700 dark:text-rose-300">{message}</Text>
     </View>
   );
 }

@@ -50,6 +50,8 @@ export interface Settings {
   theme: ThemePreference;
   /** In paise. Payments below this are never asked about. */
   minPromptAmount: number;
+  /** Capture payments from GPay/PhonePe/etc. notifications (Android build only). */
+  autoDetect: boolean;
 }
 
 export type DateRange = 'all' | '7d' | '30d' | 'thisMonth' | 'lastMonth';

@@ -10,10 +10,14 @@ interface AuthInputProps extends TextInputProps {
   icon: IconName;
   /** Renders a show/hide toggle and hides the text by default */
   password?: boolean;
+  /** Shown in red under the field, and turns the border red. */
+  error?: string;
+  /** Shown in grey under the field when there's no error. */
+  hint?: string;
 }
 
 export const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInput(
-  { label, icon, password = false, ...inputProps },
+  { label, icon, password = false, error, hint, ...inputProps },
   ref,
 ) {
   const colors = useAppColors();
@@ -25,7 +29,7 @@ export const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInpu
       <Text className="mb-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</Text>
       <View
         className={`flex-row items-center rounded-2xl border bg-card-light px-4 dark:bg-card-dark ${
-          focused ? 'border-brand-500' : 'border-slate-200 dark:border-white/10'
+          error ? 'border-rose-500' : focused ? 'border-brand-500' : 'border-slate-200 dark:border-white/10'
         }`}>
         <Ionicons name={icon} size={18} color={focused ? colors.brand : colors.subtle} />
         <TextInput
@@ -54,6 +58,11 @@ export const AuthInput = forwardRef<TextInput, AuthInputProps>(function AuthInpu
           </Pressable>
         ) : null}
       </View>
+      {error ? (
+        <Text className="mt-1.5 text-xs text-rose-600 dark:text-rose-400">{error}</Text>
+      ) : hint ? (
+        <Text className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{hint}</Text>
+      ) : null}
     </View>
   );
 });
