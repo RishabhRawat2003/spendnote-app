@@ -63,6 +63,11 @@ internal object PromptNotifier {
     }
   }
 
+  fun cancel(context: Context, id: String) {
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    manager.cancel(id.hashCode())
+  }
+
   private fun formatRupees(paise: Long): String {
     val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
     format.maximumFractionDigits = if (paise % 100 == 0L) 0 else 2

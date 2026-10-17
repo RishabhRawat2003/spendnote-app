@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 
-import type { Category, Settings, Transaction } from '@/types';
+import type { Account, Category, Settings, Transaction } from '@/types';
 
 const DEV_API_PORT = 4000;
 const TIMEOUT_MS = 15_000;
@@ -152,9 +152,23 @@ interface TransactionPage {
   total: number;
 }
 
-export type TransactionInput = Omit<Transaction, 'id' | 'upiId' | 'note'> & { upiId?: string; note?: string };
+export type TransactionInput = Omit<Transaction, 'id' | 'upiId' | 'note' | 'accountId'> & {
+  upiId?: string;
+  note?: string;
+  accountId?: string | null;
+};
 export type TransactionPatch = Partial<{ [K in keyof Omit<Transaction, 'id'>]: Transaction[K] | null }>;
 export type DetectedInput = TransactionInput & { externalId: string };
+
+export type AccountInput = {
+  name: string;
+  kind: Account['kind'];
+  institution: Account['institution'];
+  last4?: string;
+  openingBalance: number;
+  openingDate: string;
+  key?: string;
+};
 
 const PAGE_SIZE = 500;
 
@@ -164,6 +178,14 @@ export const api = {
   logIn: (email: string, password: string) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: { email, password } }),
   me: () => request<{ user: ApiUser; settings: Settings }>('/api/auth/me'),
+
+  accounts: {
+    list: () => request<Account[]>('/api/accounts'),
+    create: (body: AccountInput) => request<Account>('/api/accounts', { method: 'POST', body }),
+    update: (id: string, body: Partial<AccountInput & { archived: boolean; last4: string | null }>) =>
+      request<Account>(`/api/accounts/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+    remove: (id: string) => request<unknown>(`/api/accounts/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
 
   categories: {
     list: () => request<Category[]>('/api/categories'),
@@ -189,10 +211,10 @@ export const api = {
       request<Transaction>(`/api/transactions/${id}`, { method: 'PATCH', body }),
     remove: (id: string) => request<void>(`/api/transactions/${id}`, { method: 'DELETE' }),
     saveDetected: (transactions: DetectedInput[]) =>
-      request<{ added: number; skipped: number; transactions: Transaction[] }>('/api/transactions/detected', {
-        method: 'POST',
-        body: { transactions },
-      }),
+      request<{ added: number; skipped: number; transactions: Transaction[]; updated?: Transaction[] }>(
+        '/api/transactions/detected',
+        { method: 'POST', body: { transactions } },
+      ),
   },
 
   settings: {

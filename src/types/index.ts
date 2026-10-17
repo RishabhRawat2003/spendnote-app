@@ -17,6 +17,23 @@ export type TransactionType = 'debit' | 'credit';
 
 export type WorthIt = 'yes' | 'no' | null;
 
+export type AccountKind = 'bank' | 'credit';
+export type AccountInstitution = 'canara' | 'slice' | 'other';
+
+export interface Account {
+  id: string;
+  name: string;
+  kind: AccountKind;
+  institution: AccountInstitution;
+  /** Last 4 digits for SMS matching. */
+  last4?: string;
+  /** Opening balance in paise. For credit cards: amount currently owed. */
+  openingBalance: number;
+  /** Balances only include transactions on or after this date. */
+  openingDate: string;
+  archived: boolean;
+}
+
 export interface Transaction {
   id: string;
   /** Amount in paise, always positive. `type` decides the direction. */
@@ -29,9 +46,13 @@ export interface Transaction {
   date: string;
   /** null means untagged */
   categoryId: string | null;
+  /** Account where the money moved. Null for legacy rows until migrated. */
+  accountId?: string | null;
   note?: string;
   worthIt?: WorthIt;
   tags: string[];
+  /** Money moved between the user's own accounts (self transfer, card bill). Not spending or income. */
+  isTransfer?: boolean;
 }
 
 export type NewTransaction = Omit<Transaction, 'id'>;

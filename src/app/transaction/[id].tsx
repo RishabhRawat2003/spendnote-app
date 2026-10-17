@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 
+import { AccountPicker } from '@/components/AccountPicker';
 import { AmountText } from '@/components/AmountText';
 import { Card, SectionTitle } from '@/components/Card';
 import { CategoryIcon } from '@/components/CategoryIcon';
@@ -12,9 +13,11 @@ import { Screen } from '@/components/Screen';
 import { SourceBadge } from '@/components/SourceBadge';
 import { TagEditor } from '@/components/TagEditor';
 import { WorthItToggle } from '@/components/WorthItToggle';
+import { TRANSFERS_CATEGORY_ID } from '@/data/defaultCategories';
 import { fullDateTimeLabel } from '@/lib/dates';
 import { haptics } from '@/lib/haptics';
 import { useAppColors } from '@/lib/theme';
+import { useAccountLookup, useAccounts } from '@/store/useAccounts';
 import { useCategoryLookup } from '@/store/useCategories';
 import { useTransaction, useTransactions } from '@/store/useTransactions';
 
@@ -24,6 +27,8 @@ export default function TransactionDetailScreen() {
   const update = useTransactions((s) => s.update);
   const remove = useTransactions((s) => s.remove);
   const getCategory = useCategoryLookup();
+  const getAccount = useAccountLookup();
+  const accounts = useAccounts((s) => s.accounts);
   const colors = useAppColors();
 
   if (!tx) {
@@ -40,6 +45,7 @@ export default function TransactionDetailScreen() {
   }
 
   const category = getCategory(tx.categoryId);
+  const account = getAccount(tx.accountId);
 
   const confirmDelete = () => {
     Alert.alert('Delete transaction?', `${tx.merchant} will be removed from your history.`, [
@@ -69,7 +75,13 @@ export default function TransactionDetailScreen() {
             {tx.merchant}
           </Text>
           <AmountText amount={tx.amount} type={tx.type} signed className="mt-1 text-4xl font-bold" />
-          {!category ? (
+          {tx.isTransfer ? (
+            <View className="mt-2 rounded-full bg-sky-100 px-3 py-1 dark:bg-sky-500/15">
+              <Text className="text-xs font-semibold text-sky-700 dark:text-sky-300">
+                Between your accounts · not counted as spending
+              </Text>
+            </View>
+          ) : !category ? (
             <View className="mt-2 rounded-full bg-amber-100 px-3 py-1 dark:bg-amber-500/15">
               <Text className="text-xs font-semibold text-amber-700 dark:text-amber-300">
                 What was this for? Pick a category below.
@@ -82,6 +94,11 @@ export default function TransactionDetailScreen() {
           <DetailRow label={tx.type === 'credit' ? 'Received in' : 'Paid via'}>
             <SourceBadge source={tx.source} size="md" />
           </DetailRow>
+          {account ? (
+            <DetailRow label="Account">
+              <Text className="text-sm font-medium text-slate-800 dark:text-slate-100">{account.name}</Text>
+            </DetailRow>
+          ) : null}
           <DetailRow label="When">
             <Text className="text-sm font-medium text-slate-800 dark:text-slate-100">{fullDateTimeLabel(tx.date)}</Text>
           </DetailRow>
@@ -94,6 +111,37 @@ export default function TransactionDetailScreen() {
           ) : null}
         </Card>
 
+        <Card className="mt-3 flex-row items-center">
+          <View className="mr-3 flex-1">
+            <Text className="text-base font-medium text-slate-900 dark:text-slate-50">Transfer between my accounts</Text>
+            <Text className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              Self transfers and card bill payments. Kept out of spending, income and stats.
+            </Text>
+          </View>
+          <Switch
+            value={!!tx.isTransfer}
+            onValueChange={(isTransfer) => {
+              haptics.tap();
+              update(tx.id, {
+                isTransfer,
+                ...(isTransfer && tx.categoryId === null ? { categoryId: TRANSFERS_CATEGORY_ID } : {}),
+              });
+            }}
+            trackColor={{ true: colors.brand, false: colors.border }}
+            thumbColor="#FFFFFF"
+          />
+        </Card>
+
+        {accounts.length > 0 ? (
+          <>
+            <SectionTitle title="Account" />
+            <AccountPicker
+              value={tx.accountId ?? null}
+              onChange={(accountId) => update(tx.id, { accountId })}
+            />
+          </>
+        ) : null}
+
         <SectionTitle title="Category" />
         <CategoryPicker
           value={tx.categoryId}
@@ -101,7 +149,7 @@ export default function TransactionDetailScreen() {
           onChange={(categoryId) => update(tx.id, { categoryId })}
         />
 
-        {tx.type === 'debit' ? (
+        {tx.type === 'debit' && !tx.isTransfer ? (
           <>
             <SectionTitle title="Was it worth it?" />
             <WorthItToggle value={tx.worthIt} onChange={(worthIt) => update(tx.id, { worthIt })} />

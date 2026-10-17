@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { AccountPicker } from '@/components/AccountPicker';
 import { AmountText } from '@/components/AmountText';
 import { Card, SectionTitle } from '@/components/Card';
 import { CategoryPicker } from '@/components/CategoryPicker';
@@ -14,20 +15,25 @@ import { fullDateTimeLabel } from '@/lib/dates';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { haptics } from '@/lib/haptics';
 import { untaggedTransactions } from '@/lib/selectors';
+import { useSync } from '@/lib/sync';
 import { useAppColors } from '@/lib/theme';
 import { usePullToRefresh } from '@/lib/usePullToRefresh';
+import { useAccounts } from '@/store/useAccounts';
 import { useSettings } from '@/store/useSettings';
 import { useTransactions } from '@/store/useTransactions';
 
 export default function UntaggedInboxScreen() {
   const transactions = useTransactions((s) => s.transactions);
   const update = useTransactions((s) => s.update);
+  const accounts = useAccounts((s) => s.accounts);
   const minPromptAmount = useSettings((s) => s.minPromptAmount);
   const colors = useAppColors();
   const { refreshControlProps } = usePullToRefresh();
+  const syncStatus = useSync((s) => s.status);
 
   const [skipped, setSkipped] = useState<string[]>([]);
   const [note, setNote] = useState('');
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [taggedCount, setTaggedCount] = useState(0);
 
   const untagged = useMemo(
@@ -37,6 +43,17 @@ export default function UntaggedInboxScreen() {
   const queue = untagged.filter((tx) => !skipped.includes(tx.id));
   const current = queue[0];
   const upNext = queue.slice(1, 4);
+
+  if (untagged.length === 0 && (syncStatus === 'idle' || syncStatus === 'loading')) {
+    return (
+      <Screen>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color={colors.brand} />
+          <Text className="mt-3 text-sm text-slate-500 dark:text-slate-400">Loading your payments…</Text>
+        </View>
+      </Screen>
+    );
+  }
 
   if (untagged.length === 0) {
     return (
@@ -49,7 +66,11 @@ export default function UntaggedInboxScreen() {
               ? `You tagged ${taggedCount} ${taggedCount === 1 ? 'payment' : 'payments'}. Nice work.`
               : 'Every payment has a category.'
           }
-          action={{ label: 'Back to home', onPress: () => router.back() }}
+          action={{
+            label: 'Back to home',
+            // Opened from a notification, there's nothing behind this screen to go back to.
+            onPress: () => (router.canGoBack() ? router.back() : router.replace('/')),
+          }}
         />
       </Screen>
     );
@@ -69,9 +90,14 @@ export default function UntaggedInboxScreen() {
   }
 
   const tag = (categoryId: string) => {
-    update(current.id, { categoryId, note: note.trim() || current.note });
+    update(current.id, {
+      categoryId,
+      note: note.trim() || current.note,
+      ...(accountId || current.accountId ? { accountId: accountId ?? current.accountId } : {}),
+    });
     haptics.success();
     setNote('');
+    setAccountId(null);
     setTaggedCount((n) => n + 1);
   };
 
@@ -79,6 +105,7 @@ export default function UntaggedInboxScreen() {
     haptics.tap();
     setSkipped((s) => [...s, current.id]);
     setNote('');
+    setAccountId(null);
   };
 
   return (
@@ -120,6 +147,13 @@ export default function UntaggedInboxScreen() {
           placeholderTextColor={colors.subtle}
           className="mt-4 rounded-xl border border-slate-200 bg-card-light px-4 py-3 text-base text-slate-900 dark:border-white/10 dark:bg-card-dark dark:text-slate-50"
         />
+
+        {accounts.length > 0 ? (
+          <>
+            <SectionTitle title="Account" />
+            <AccountPicker value={accountId ?? current.accountId ?? null} onChange={setAccountId} />
+          </>
+        ) : null}
 
         <SectionTitle title="Pick a category" />
         <CategoryPicker value={null} onChange={tag} type="debit" />

@@ -2,6 +2,7 @@ package expo.modules.paymentdetector
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.Settings
 import expo.modules.kotlin.exception.Exceptions
 import expo.modules.kotlin.modules.Module
@@ -26,8 +27,7 @@ class PaymentDetectorModule : Module() {
     }
 
     Function("isListenerEnabled") {
-      val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: ""
-      enabled.split(":").any { it.startsWith("${context.packageName}/") }
+      isListenerEnabled(context)
     }
 
     Function("openListenerSettings") {
@@ -47,9 +47,47 @@ class PaymentDetectorModule : Module() {
       PaymentStore.configure(context, enabled, minAmountPaise.toLong())
     }
 
+    Function("setOwnerName") { name: String ->
+      PaymentStore.setOwnerName(context, name)
+    }
+
     Function("simulatePayment") { packageName: String, title: String, text: String ->
       PaymentProcessor.handle(context, packageName, title, text, System.currentTimeMillis())
     }
+
+    Function("getDiagnostics") {
+      PaymentStore.diagnostics(context) + mapOf(
+        "listenerEnabled" to isListenerEnabled(context),
+        "listenerConnected" to PaymentNotificationListener.connected
+      )
+    }
+
+    Function("getActivity") {
+      PaymentStore.activity(context)
+    }
+
+    Function("clearActivity") {
+      PaymentStore.clearActivity(context)
+    }
+
+    /**
+     * Android sometimes leaves the listener unbound after an install or update even though access is
+     * granted. Toggling the component forces the system to bind it again.
+     */
+    Function("reconnect") {
+      if (!isListenerEnabled(context) || PaymentNotificationListener.connected) return@Function false
+      val pm = context.packageManager
+      val component = PaymentNotificationListener.component(context)
+      pm.setComponentEnabledSetting(component, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+      pm.setComponentEnabledSetting(component, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+      PaymentNotificationListener.rebind(context)
+      true
+    }
+  }
+
+  private fun isListenerEnabled(context: Context): Boolean {
+    val enabled = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners") ?: ""
+    return enabled.split(":").any { it.startsWith("${context.packageName}/") }
   }
 
   companion object {

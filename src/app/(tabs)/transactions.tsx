@@ -49,6 +49,7 @@ export default function TransactionsScreen() {
     () =>
       filtered.reduce(
         (acc, tx) => {
+          if (tx.isTransfer) return acc;
           if (tx.type === 'debit') acc.spent += tx.amount;
           else acc.received += tx.amount;
           return acc;

@@ -60,12 +60,15 @@ export const useTransactions = create<TransactionsState>((set, get) => {
     },
 
     addDetected: async (inputs) => {
-      const { transactions: created } = await api.transactions.saveDetected(inputs);
-      if (created.length > 0) {
+      const { transactions: created, updated = [] } = await api.transactions.saveDetected(inputs);
+      if (created.length > 0 || updated.length > 0) {
+        // `updated` are earlier payments the server recognised as the other side of a transfer.
+        const replacements = new Map(updated.map((tx) => [tx.id, tx]));
         set((state) => {
           const known = new Set(state.transactions.map((tx) => tx.id));
           const fresh = created.filter((tx) => !known.has(tx.id));
-          return { transactions: sortByDate([...fresh, ...state.transactions]) };
+          const existing = state.transactions.map((tx) => replacements.get(tx.id) ?? tx);
+          return { transactions: sortByDate([...fresh, ...existing]) };
         });
       }
       return created.length;

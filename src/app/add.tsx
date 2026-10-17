@@ -1,19 +1,23 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AccountPicker } from '@/components/AccountPicker';
 import { SectionTitle } from '@/components/Card';
 import { CategoryPicker } from '@/components/CategoryPicker';
 import { DateTimeField } from '@/components/DateTimeField';
 import { Screen } from '@/components/Screen';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { SourcePicker } from '@/components/SourcePicker';
+import { defaultAccountIdForSource } from '@/data/accounts';
 import { INCOME_CATEGORY_ID } from '@/data/defaultCategories';
 import { errorMessage } from '@/lib/api';
 import { parseRupeesToPaise } from '@/lib/formatCurrency';
 import { haptics } from '@/lib/haptics';
 import { useAppColors } from '@/lib/theme';
+import { useAccounts } from '@/store/useAccounts';
 import { useTransactions } from '@/store/useTransactions';
 import type { Source, TransactionType } from '@/types';
 
@@ -21,6 +25,7 @@ const MAX_PAISE = 1_00_00_000 * 100;
 
 export default function AddExpenseScreen() {
   const add = useTransactions((s) => s.add);
+  const accounts = useAccounts((s) => s.accounts);
   const colors = useAppColors();
   const insets = useSafeAreaInsets();
 
@@ -29,13 +34,19 @@ export default function AddExpenseScreen() {
   const [merchant, setMerchant] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [source, setSource] = useState<Source>('cash');
+  const [accountId, setAccountId] = useState<string | null>(() =>
+    defaultAccountIdForSource('cash', new Set(useAccounts.getState().accounts.map((a) => a.id))),
+  );
   const [date, setDate] = useState(() => new Date());
   const [note, setNote] = useState('');
+  const [isTransfer, setIsTransfer] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const needsAccount = accounts.length > 0;
   const paise = parseRupeesToPaise(amountText);
   const amountValid = paise !== null && paise > 0 && paise <= MAX_PAISE;
-  const canSave = amountValid && merchant.trim().length > 0 && categoryId !== null;
+  const canSave =
+    amountValid && merchant.trim().length > 0 && categoryId !== null && (!needsAccount || accountId !== null);
 
   const missing = !amountValid
     ? 'Enter an amount'
@@ -43,7 +54,14 @@ export default function AddExpenseScreen() {
       ? `Add who you ${type === 'debit' ? 'paid' : 'got it from'}`
       : !categoryId
         ? 'Pick a category'
-        : null;
+        : needsAccount && !accountId
+          ? 'Pick an account'
+          : null;
+
+  const changeSource = (next: Source) => {
+    setSource(next);
+    setAccountId(defaultAccountIdForSource(next, new Set(accounts.map((a) => a.id))));
+  };
 
   const changeType = (next: TransactionType) => {
     setType(next);
@@ -62,9 +80,11 @@ export default function AddExpenseScreen() {
         source,
         date: date.toISOString(),
         categoryId,
+        accountId,
         note: note.trim() || undefined,
         worthIt: null,
         tags: [],
+        isTransfer,
       });
       haptics.success();
       router.back();
@@ -128,7 +148,37 @@ export default function AddExpenseScreen() {
         <CategoryPicker value={categoryId} onChange={setCategoryId} type={type} />
 
         <SectionTitle title={type === 'debit' ? 'Paid via' : 'Received in'} />
-        <SourcePicker value={source} onChange={setSource} />
+        <SourcePicker value={source} onChange={changeSource} />
+
+        {needsAccount ? (
+          <>
+            <SectionTitle title="Account" />
+            <AccountPicker value={accountId} onChange={setAccountId} />
+            <Pressable
+              onPress={() => {
+                haptics.tap();
+                setIsTransfer((v) => !v);
+              }}
+              className="mt-3 flex-row items-center rounded-xl border border-slate-200 bg-card-light px-3 py-3 dark:border-white/10 dark:bg-card-dark">
+              <View
+                className={`mr-3 h-5 w-5 items-center justify-center rounded border ${
+                  isTransfer
+                    ? 'border-brand-600 bg-brand-600 dark:border-brand-500 dark:bg-brand-500'
+                    : 'border-slate-300 dark:border-white/20'
+                }`}>
+                {isTransfer ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-slate-900 dark:text-slate-50">
+                  Transfer between my accounts
+                </Text>
+                <Text className="text-xs text-slate-500 dark:text-slate-400">
+                  Won’t count toward spending or income
+                </Text>
+              </View>
+            </Pressable>
+          </>
+        ) : null}
 
         <SectionTitle title="When" />
         <DateTimeField value={date} onChange={setDate} />

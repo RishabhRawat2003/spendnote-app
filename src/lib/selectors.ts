@@ -1,6 +1,6 @@
 import { startOfMonth, subMonths } from 'date-fns';
 
-import type { Transaction, TransactionFilters } from '@/types';
+import type { Account, Transaction, TransactionFilters } from '@/types';
 
 import { dayKey, dayLabel, isInMonth, isInRange, monthKey } from './dates';
 
@@ -44,11 +44,16 @@ export function sortByDateDesc(txs: Transaction[]): Transaction[] {
   return [...txs].sort((a, b) => b.date.localeCompare(a.date));
 }
 
+/** Spending or income, as opposed to money moved between the user's own accounts. */
+export const isSpendOrIncome = (tx: Transaction) => !tx.isTransfer;
+
+const isSpend = (tx: Transaction) => tx.type === 'debit' && !tx.isTransfer;
+
 export function monthTotals(txs: Transaction[], month: Date) {
   let spent = 0;
   let income = 0;
   for (const tx of txs) {
-    if (!isInMonth(tx.date, month)) continue;
+    if (tx.isTransfer || !isInMonth(tx.date, month)) continue;
     if (tx.type === 'debit') spent += tx.amount;
     else income += tx.amount;
   }
@@ -58,7 +63,7 @@ export function monthTotals(txs: Transaction[], month: Date) {
 export function spendByCategory(txs: Transaction[], month: Date): CategoryTotal[] {
   const map = new Map<string, CategoryTotal>();
   for (const tx of txs) {
-    if (tx.type !== 'debit' || !isInMonth(tx.date, month)) continue;
+    if (!isSpend(tx) || !isInMonth(tx.date, month)) continue;
     const key = tx.categoryId ?? UNTAGGED_KEY;
     const entry = map.get(key) ?? { categoryId: key, total: 0, count: 0 };
     entry.total += tx.amount;
@@ -71,7 +76,7 @@ export function spendByCategory(txs: Transaction[], month: Date): CategoryTotal[
 /** Untagged debits the user would actually be asked about, newest first. */
 export function untaggedTransactions(txs: Transaction[], minPromptAmount: number): Transaction[] {
   return sortByDateDesc(
-    txs.filter((tx) => tx.type === 'debit' && tx.categoryId === null && tx.amount >= minPromptAmount),
+    txs.filter((tx) => isSpend(tx) && tx.categoryId === null && tx.amount >= minPromptAmount),
   );
 }
 
@@ -109,7 +114,7 @@ export function groupByDay(txs: Transaction[]): DaySection[] {
       sections.push(section);
     }
     section.data.push(tx);
-    if (tx.type === 'debit') section.spent += tx.amount;
+    if (isSpend(tx)) section.spent += tx.amount;
   }
   return sections;
 }
@@ -117,7 +122,7 @@ export function groupByDay(txs: Transaction[]): DaySection[] {
 export function topMerchants(txs: Transaction[], month: Date, limit = 5): MerchantTotal[] {
   const map = new Map<string, MerchantTotal>();
   for (const tx of txs) {
-    if (tx.type !== 'debit' || !isInMonth(tx.date, month)) continue;
+    if (!isSpend(tx) || !isInMonth(tx.date, month)) continue;
     const entry = map.get(tx.merchant) ?? { merchant: tx.merchant, total: 0, count: 0 };
     entry.total += tx.amount;
     entry.count += 1;
@@ -137,7 +142,7 @@ export function monthlySeries(txs: Transaction[], months = 6, now: Date = new Da
   }
   for (const tx of txs) {
     const point = byKey.get(monthKey(tx.date));
-    if (!point) continue;
+    if (!point || tx.isTransfer) continue;
     if (tx.type === 'debit') point.spent += tx.amount;
     else point.income += tx.amount;
   }
@@ -151,7 +156,7 @@ export function worthItSplit(txs: Transaction[], month: Date) {
     unrated: { total: 0, count: 0 },
   };
   for (const tx of txs) {
-    if (tx.type !== 'debit' || !isInMonth(tx.date, month)) continue;
+    if (!isSpend(tx) || !isInMonth(tx.date, month)) continue;
     const bucket = tx.worthIt === 'yes' ? result.yes : tx.worthIt === 'no' ? result.no : result.unrated;
     bucket.total += tx.amount;
     bucket.count += 1;
@@ -169,4 +174,43 @@ export function availableMonths(txs: Transaction[], now: Date = new Date()): Dat
       const [y, m] = key.split('-').map(Number);
       return new Date(y, m - 1, 1);
     });
+}
+
+export interface AccountBalance {
+  account: Account;
+  /** Bank: available balance. Credit: amount owed. */
+  balance: number;
+}
+
+/**
+ * Bank: opening + credits − debits (including transfers).
+ * Credit: openingOwed + purchases − repayments → show as owed.
+ */
+export function accountBalances(accounts: Account[], txs: Transaction[]): AccountBalance[] {
+  return accounts
+    .filter((a) => !a.archived)
+    .map((account) => {
+      const openingMs = new Date(account.openingDate).getTime();
+      let balance = account.openingBalance;
+      for (const tx of txs) {
+        if (tx.accountId !== account.id) continue;
+        if (new Date(tx.date).getTime() < openingMs) continue;
+        if (account.kind === 'credit') {
+          // Purchases increase debt; repayments (credits) decrease it.
+          balance += tx.type === 'debit' ? tx.amount : -tx.amount;
+        } else {
+          balance += tx.type === 'credit' ? tx.amount : -tx.amount;
+        }
+      }
+      return { account, balance: Math.max(0, balance) };
+    });
+}
+
+/** Sum of bank balances minus credit-card debt. */
+export function netWorth(balances: AccountBalance[]): number {
+  let total = 0;
+  for (const { account, balance } of balances) {
+    total += account.kind === 'credit' ? -balance : balance;
+  }
+  return total;
 }

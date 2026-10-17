@@ -31,7 +31,11 @@ export const TransactionRow = memo(function TransactionRow({ transaction: tx, sh
           {tx.merchant}
         </Text>
         <View className="mt-0.5 flex-row items-center">
-          {category ? (
+          {tx.isTransfer ? (
+            <Text className="text-xs font-semibold text-sky-600 dark:text-sky-400">
+              {tx.type === 'debit' ? 'Transfer out' : 'Transfer in'}
+            </Text>
+          ) : category ? (
             <Text numberOfLines={1} className="shrink text-xs text-slate-500 dark:text-slate-400">
               {category.name}
             </Text>

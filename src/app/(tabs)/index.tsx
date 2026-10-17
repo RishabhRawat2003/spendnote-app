@@ -13,10 +13,19 @@ import { SummaryCard } from '@/components/SummaryCard';
 import { SyncBanner } from '@/components/SyncBanner';
 import { useTabBarSpace } from '@/components/TabBar';
 import { TransactionRow } from '@/components/TransactionRow';
+import { accountColor, accountIcon } from '@/data/accounts';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { isInMonth, monthLabel } from '@/lib/dates';
 import { usePullToRefresh } from '@/lib/usePullToRefresh';
-import { monthTotals, spendByCategory, UNTAGGED_KEY, untaggedTransactions } from '@/lib/selectors';
+import {
+  accountBalances,
+  monthTotals,
+  netWorth,
+  spendByCategory,
+  UNTAGGED_KEY,
+  untaggedTransactions,
+} from '@/lib/selectors';
+import { useAccounts } from '@/store/useAccounts';
 import { useAuth } from '@/store/useAuth';
 import { useCategoryLookup } from '@/store/useCategories';
 import { useSettings } from '@/store/useSettings';
@@ -32,29 +41,33 @@ function greeting(now: Date) {
 export default function HomeScreen() {
   const tabBarSpace = useTabBarSpace();
   const transactions = useTransactions((s) => s.transactions);
+  const accounts = useAccounts((s) => s.accounts);
   const minPromptAmount = useSettings((s) => s.minPromptAmount);
   const getCategory = useCategoryLookup();
   const firstName = useAuth((s) => s.user?.name.split(' ')[0]);
   const { refreshKey, refreshControlProps } = usePullToRefresh();
   const now = new Date();
 
-  const { totals, previousSpent, topCategories, untagged } = useMemo(() => {
+  const { totals, previousSpent, topCategories, untagged, balances, worth } = useMemo(() => {
     const today = new Date();
     const lastMonth = subMonths(today, 1);
     const dayOfMonth = getDate(today);
     const previousSpent = transactions
-      .filter((tx) => tx.type === 'debit' && isInMonth(tx.date, lastMonth) && getDate(new Date(tx.date)) <= dayOfMonth)
+      .filter((tx) => tx.type === 'debit' && !tx.isTransfer && isInMonth(tx.date, lastMonth) && getDate(new Date(tx.date)) <= dayOfMonth)
       .reduce((sum, tx) => sum + tx.amount, 0);
+    const balances = accountBalances(accounts, transactions);
 
     return {
       totals: monthTotals(transactions, today),
       previousSpent,
       topCategories: spendByCategory(transactions, today).slice(0, 5),
       untagged: untaggedTransactions(transactions, minPromptAmount),
+      balances,
+      worth: netWorth(balances),
     };
     // refreshKey: recompute "this month" after a pull, e.g. when the month has rolled over.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, minPromptAmount, refreshKey]);
+  }, [transactions, accounts, minPromptAmount, refreshKey]);
 
   const recent = transactions.slice(0, 5);
   const untaggedTotal = untagged.reduce((sum, tx) => sum + tx.amount, 0);
@@ -79,6 +92,66 @@ export default function HomeScreen() {
             income={totals.income}
             previousSpent={previousSpent}
           />
+
+          {accounts.length === 0 ? (
+            <Card
+              className="mt-4 flex-row items-center border-sky-300/60 bg-sky-50 dark:border-sky-500/20 dark:bg-sky-500/10"
+              onPress={() => router.push({ pathname: '/accounts', params: { setup: '1' } })}>
+              <View className="h-11 w-11 items-center justify-center rounded-full bg-sky-400/25">
+                <Ionicons name="wallet-outline" size={20} color="#0284C7" />
+              </View>
+              <View className="ml-3 flex-1">
+                <Text className="text-base font-bold text-sky-900 dark:text-sky-200">Set up your accounts</Text>
+                <Text className="mt-0.5 text-xs text-sky-800/80 dark:text-sky-200/70">
+                  Opening balances so transfers don’t double-count income
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#0284C7" />
+            </Card>
+          ) : (
+            <View className="mt-4">
+              <SectionTitle
+                title="Accounts"
+                action={{ label: 'Manage', onPress: () => router.push('/accounts') }}
+              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">
+                {balances.map(({ account, balance }) => {
+                  const color = accountColor(account.id, account.institution);
+                  return (
+                    <Pressable
+                      key={account.id}
+                      onPress={() => router.push('/accounts')}
+                      className="min-w-[140px] rounded-2xl border border-slate-200 bg-card-light px-3.5 py-3 dark:border-white/10 dark:bg-card-dark active:opacity-80">
+                      <View className="flex-row items-center">
+                        <View
+                          className="h-8 w-8 items-center justify-center rounded-full"
+                          style={{ backgroundColor: `${color}22` }}>
+                          <Ionicons name={accountIcon(account.kind, account.institution)} size={16} color={color} />
+                        </View>
+                        <Text numberOfLines={1} className="ml-2 flex-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                          {account.name}
+                        </Text>
+                      </View>
+                      <Text
+                        className={`mt-2 text-base font-bold ${
+                          account.kind === 'credit'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-slate-900 dark:text-slate-50'
+                        }`}>
+                        {formatCurrency(balance)}
+                      </Text>
+                      <Text className="text-[11px] text-slate-400 dark:text-slate-500">
+                        {account.kind === 'credit' ? 'Owed' : 'Balance'}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Text className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Net ≈ {formatCurrency(worth)}
+              </Text>
+            </View>
+          )}
 
           {untagged.length > 0 ? (
             <Card

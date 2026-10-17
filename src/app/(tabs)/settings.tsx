@@ -14,6 +14,7 @@ import { useTabBarSpace } from '@/components/TabBar';
 import { formatCurrency } from '@/lib/formatCurrency';
 import { haptics } from '@/lib/haptics';
 import { useAppColors } from '@/lib/theme';
+import { useAccounts } from '@/store/useAccounts';
 import { useAuth } from '@/store/useAuth';
 import { useCategories } from '@/store/useCategories';
 import { useSettings } from '@/store/useSettings';
@@ -28,6 +29,7 @@ export default function SettingsScreen() {
   const minPromptAmount = useSettings((s) => s.minPromptAmount);
   const setMinPromptAmount = useSettings((s) => s.setMinPromptAmount);
   const categoryCount = useCategories((s) => s.categories.length);
+  const accountCount = useAccounts((s) => s.accounts.length);
   const user = useAuth((s) => s.user);
   const logOut = useAuth((s) => s.logOut);
   const colors = useAppColors();
@@ -105,6 +107,14 @@ export default function SettingsScreen() {
 
         <SectionTitle title="Organise" />
         <Card className="overflow-hidden p-0">
+          <SettingsRow
+            icon="wallet-outline"
+            label="Accounts"
+            value={`${accountCount}`}
+            hint="Balances, last 4 digits, opening amounts"
+            onPress={() => router.push('/accounts')}
+          />
+          <View className="mx-4 border-t border-slate-100 dark:border-white/5" />
           <SettingsRow
             icon="pricetags-outline"
             label="Categories"

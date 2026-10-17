@@ -2,6 +2,7 @@ import type { Category, IconName } from '@/types';
 
 export const MISC_CATEGORY_ID = 'misc';
 export const INCOME_CATEGORY_ID = 'income';
+export const TRANSFERS_CATEGORY_ID = 'transfers';
 
 export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'food', name: 'Food', icon: 'fast-food-outline', color: '#F97316', isDefault: true },
@@ -13,7 +14,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'entertainment', name: 'Entertainment', icon: 'film-outline', color: '#F43F5E', isDefault: true },
   { id: 'health', name: 'Health', icon: 'medkit-outline', color: '#14B8A6', isDefault: true },
   { id: 'education', name: 'Education', icon: 'school-outline', color: '#6366F1', isDefault: true },
-  { id: 'transfers', name: 'Transfers', icon: 'people-outline', color: '#64748B', isDefault: true },
+  { id: TRANSFERS_CATEGORY_ID, name: 'Transfers', icon: 'people-outline', color: '#64748B', isDefault: true },
   { id: INCOME_CATEGORY_ID, name: 'Income', icon: 'trending-up-outline', color: '#10B981', isDefault: true },
   { id: MISC_CATEGORY_ID, name: 'Misc', icon: 'ellipsis-horizontal-circle-outline', color: '#A1A1AA', isDefault: true },
 ];

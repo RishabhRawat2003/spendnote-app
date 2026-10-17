@@ -28,7 +28,8 @@ export default function RootLayout() {
   const lockHydrated = useAppLock((s) => s.hydrated);
   const hydrateLock = useAppLock((s) => s.hydrate);
   const showSplash = !splashDone || authStatus === 'restoring' || !lockHydrated;
-  usePaymentDetection(isLoggedIn);
+  const userName = useAuth((s) => s.user?.name);
+  usePaymentDetection(isLoggedIn, userName);
 
   useEffect(() => {
     restoreSession();
@@ -72,6 +73,8 @@ export default function RootLayout() {
             <Stack.Screen name="add" options={{ title: 'Add expense', presentation: 'modal' }} />
             <Stack.Screen name="untagged" options={{ title: 'Untagged' }} />
             <Stack.Screen name="categories" options={{ title: 'Categories' }} />
+            <Stack.Screen name="accounts" options={{ title: 'Accounts' }} />
+            <Stack.Screen name="detection-log" options={{ title: 'Detection activity' }} />
           </Stack.Protected>
           <Stack.Protected guard={!isLoggedIn}>
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
